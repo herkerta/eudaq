@@ -27,7 +27,6 @@ private:
   unsigned m_ev;
 
   DeviceManager* manager_;
-  Device* device_{nullptr};
   std::string name_;
 
   std::mutex device_mutex_;
@@ -35,9 +34,6 @@ private:
   bool m_exit_of_run;
 
   size_t number_of_subevents_{0};
-
-  std::string adc_signal_;
-  uint64_t adc_freq_;
 };
 
 namespace{
@@ -67,7 +63,6 @@ void CaribouTeleProducer::DoReset() {
   // Delete all devices:
   std::lock_guard<std::mutex> lock{device_mutex_};
   manager_->clearDevices();
-  device_ = nullptr;
 }
 
 void CaribouTeleProducer::DoInitialise() {
@@ -98,12 +93,10 @@ void CaribouTeleProducer::DoInitialise() {
   }
 
   std::lock_guard<std::mutex> lock{device_mutex_};
-  size_t device_id=0;
-  Configuration config;
   for(int plane_n=1; plane_n<=6; plane_n++){
-    config = cfg.GetConfig("PLANE" + std::to_string(plane_n));
+    auto config = cfg.GetConfig("PLANE" + std::to_string(plane_n));
     auto&& type = config.Get<std::string>("type");
-    device_id = manager_->addDevice(type, config);
+    const auto device_id = manager_->addDevice(type, config);
     EUDAQ_INFO("Manager returned device ID " + std::to_string(device_id));
   }
 }
@@ -114,39 +107,28 @@ void CaribouTeleProducer::DoConfigure() {
   LOG(INFO) << "Configuring CaribouTeleProducer: " << config->Name();
 
   std::lock_guard<std::mutex> lock{device_mutex_};
-  for(int plane_id=0; plane_id<6; plane_id++){
-      device_ = manager_->getDevice(plane_id);
-
-      EUDAQ_INFO("Configuring device " + device_->getName());
+  for(auto device : manager_->getDevices()) {
+      EUDAQ_INFO("Configuring device " + device->getName());
 
       // Switch on the device power:
-      device_->powerOn();
+      device->powerOn();
 
       // Wait for power to stabilize and for the TLU clock to be present
       eudaq::mSleep(1000);
 
       // Configure the device
-      device_->configure();
+      device->configure();
 
       // Set additional registers from the configuration:
 
       if(config->Has("register_key") || config->Has("register_value")) {
           auto key = config->Get("register_key", "");
           auto value = config->Get("register_value", 0);
-          device_->setRegister(key, value);
+          device->setRegister(key, value);
           EUDAQ_USER("Setting " + key + " = " + std::to_string(value));
       }
-
-      // Select which ADC signal to regularly fetch:
-      adc_signal_ = config->Get("adc_signal", "");
-      adc_freq_ = config->Get("adc_frequency", 1000);
-
-      if(!adc_signal_.empty()) {
-          // Try it out directly to catch misconfiugration
-          auto adc_value = device_->getADC(adc_signal_);
-          EUDAQ_USER("Will probe ADC signal \"" + adc_signal_ + "\" every " + std::to_string(adc_freq_) + " events");
-      }
   }
+
   // Allow to stack multiple sub-events
   number_of_subevents_ = config->Get("number_of_subevents", 6);
   EUDAQ_USER("Will stack " + std::to_string(number_of_subevents_) + " subevents before sending event");
@@ -179,9 +161,8 @@ void CaribouTeleProducer::DoStartRun() {
   SendEvent(std::move(event));
 
   // Start DAQ:
-  for(int plane_id=0; plane_id<6; plane_id++){
-    device_ = manager_->getDevice(plane_id);
-    device_->daqStart();
+  for(auto device : manager_->getDevices()) {
+    device->daqStart();
   }
 
   LOG(INFO) << "Started run.";
@@ -199,9 +180,8 @@ void CaribouTeleProducer::DoStopRun() {
 
   // Stop the DAQ
   std::lock_guard<std::mutex> lock{device_mutex_};
-  for(int plane_id=0; plane_id<6; plane_id++){
-    device_ = manager_->getDevice(plane_id);
-    device_->daqStop();
+  for(auto device : manager_->getDevices()) {
+    device->daqStop();
   }
   LOG(INFO) << "Stopped run.";
 }
@@ -216,10 +196,10 @@ void CaribouTeleProducer::RunLoop() {
   std::vector<eudaq::EventSPC> data_buffer;
   while(!m_exit_of_run) {
     for(int plane_id=0; plane_id<6; plane_id++){
-      device_ = manager_->getDevice(plane_id);
+      auto device = manager_->getDevice(plane_id);
       try {
           // Retrieve data from the device:
-          auto data = device_->getRawData();
+          auto data = device->getRawData();
 
           if(!data.empty()) {
               // Create new event
@@ -228,16 +208,6 @@ void CaribouTeleProducer::RunLoop() {
               event->SetEventN(m_ev);
               // Add data to the event
               event->AddBlock(0, data);
-
-              // Query ADC if wanted:
-              if(m_ev%adc_freq_ == 0) {
-                  if(!adc_signal_.empty()) {
-                      auto adc_value = device_->getADC(adc_signal_);
-                      LOG(DEBUG) << "Reading ADC: " << adc_value << "V";
-                      EUDAQ_USER("ADC reading: " + adc_signal_ + " =  " + std::to_string(adc_value));
-                      event->SetTag(adc_signal_, adc_value);
-                  }
-              }
 
               if(number_of_subevents_ == 0) {
                   // We do not want to generate sub-events - send the event directly off to the Data Collector
