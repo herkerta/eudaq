@@ -93,11 +93,11 @@ void CaribouTeleProducer::DoInitialise() {
   }
 
   std::lock_guard<std::mutex> lock{device_mutex_};
-  for(int plane_n=1; plane_n<=6; plane_n++){
-    auto config = cfg.GetConfig("PLANE" + std::to_string(plane_n));
-    auto&& type = config.Get<std::string>("type");
+  // Loop over all devices in the config:
+  for(const auto [name, config] : cfg.GetAllConfigs()) {
+    const auto type = config.Get<std::string>("type");
     const auto device_id = manager_->addDevice(type, config);
-    EUDAQ_INFO("Manager returned device ID " + std::to_string(device_id));
+    EUDAQ_INFO("Manager returned device ID " + std::to_string(device_id) + " for device " + name);
   }
 }
 
@@ -148,14 +148,21 @@ void CaribouTeleProducer::DoStartRun() {
   // Create new event
   auto event = eudaq::Event::MakeUnique("CaribouTeleEvent");
   event->SetBORE();
-//  event->SetTag("software",  device_->getVersion());
-//  event->SetTag("firmware",  device_->getFirmwareVersion());
-//  event->SetTag("timestamp", LOGTIME);
 
-//  auto registers = device_->getRegisters();
-//  for(const auto& reg : registers) {
-//    event->SetTag(reg.first, reg.second);
-//  }
+  // Use software and firmware version from first device:
+  for(auto device : manager_->getDevices()) {
+    event->SetTag("software",  device->getVersion());
+    event->SetTag("firmware",  device->getFirmwareVersion());
+    event->SetTag("timestamp", LOGTIME);
+
+    break;
+  }
+
+  // FIXME we would like to write all registers, let's see how to do that with naming...
+  // auto registers = device_->getRegisters();
+  //  for(const auto& reg : registers) {
+  //    event->SetTag(reg.first, reg.second);
+  //  }
 
   // Send the event to the Data Collector
   SendEvent(std::move(event));
