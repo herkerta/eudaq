@@ -200,42 +200,31 @@ void CaribouTeleProducer::RunLoop() {
   LOG(INFO) << "Starting run loop...";
   std::lock_guard<std::mutex> lock{device_mutex_};
 
-  std::vector<eudaq::EventSPC> data_buffer;
+  auto event = eudaq::Event::MakeUnique("CaribouTeleEvent");
+  event->SetEventN(m_ev);
+
   while(!m_exit_of_run) {
     for(int plane_id=0; plane_id<6; plane_id++){
       auto device = manager_->getDevice(plane_id);
       try {
-          // Retrieve data from the device:
           auto data = device->getRawData();
 
           if(!data.empty()) {
-              // Create new event
-              auto event = eudaq::Event::MakeUnique("CaribouPLANE" + std::to_string(plane_id) + "Event");
-              // Set event ID
-              event->SetEventN(m_ev);
-              // Add data to the event
-              event->AddBlock(0, data);
-
-              if(number_of_subevents_ == 0) {
-                  // We do not want to generate sub-events - send the event directly off to the Data Collector
+              auto plane_id_list = event->GetBlockNumList();
+              if(std::find(plane_id_list.begin(), plane_id_list.end(), plane_id) == plane_id_list.end()){
+                  event->AddBlock(plane_id, data);
+              }
+              else{
+                  EUDAQ_ERROR("CaribouTeleProducer tried to add data block with plane id that already existed in the event");
+                  //break;//?
+              }
+              if(event->NumBlocks() == 6) {
                   SendEvent(std::move(event));
-              } else {
-                  // We are still buffering sub-events, buffer not filled yet:
-                  data_buffer.push_back(std::move(event));
+                  auto event = eudaq::Event::MakeUnique("CaribouTeleEvent");
+                  m_ev++;
+                  event->SetEventN(m_ev);
               }
           }
-
-          // Buffer of sub-events is full, let's ship this off to the Data Collector
-          if(!data_buffer.empty() && data_buffer.size() == number_of_subevents_) {
-              auto evup = eudaq::Event::MakeUnique("CaribouTeleEvent");
-              for(auto& subevt : data_buffer) {
-                  evup->AddSubEvent(subevt);
-              }
-              SendEvent(std::move(evup));
-              data_buffer.clear();
-              m_ev++;
-          }
-
       } catch(caribou::NoDataAvailable&) {
           continue;
       } catch(caribou::DataException& e) {
@@ -247,16 +236,6 @@ void CaribouTeleProducer::RunLoop() {
           break;
       }
     }
-  }
-  // Send remaining pixel data:
-  if(!data_buffer.empty()) {
-    LOG(INFO) << "Sending remaining " << data_buffer.size() << " events from data buffer";
-    auto evup = eudaq::Event::MakeUnique("CaribouTeleEvent");
-    for(auto& subevt : data_buffer) {
-      evup->AddSubEvent(subevt);
-    }
-    SendEvent(std::move(evup));
-    data_buffer.clear();
   }
 
   LOG(INFO) << "Exiting run loop.";
