@@ -1,12 +1,5 @@
-#include "eudaq/StdEventConverter.hh"
-#include "eudaq/RawEvent.hh"
-#include "eudaq/Logger.hh"
+#include "CaribouEvent2StdEventConverter.hh"
 
-class CaribouTeleEventConverter: public eudaq::StdEventConverter{
-public:
-  bool Converting(eudaq::EventSPC d1, eudaq::StdEventSP d2, eudaq::ConfigSPC conf) const override;
-  static const uint32_t m_id_factory = eudaq::cstr2hash("CaribouTeleEvent");
-};
 
 namespace{
   auto dummy0 = eudaq::Factory<eudaq::StdEventConverter>::
@@ -29,43 +22,80 @@ bool CaribouTeleEventConverter::Converting(eudaq::EventSPC d1, eudaq::StdEventSP
   for(int plane_id=0;plane_id<6;plane_id++){
     eudaq::StandardPlane plane(plane_id, "CaribouTele", "Alpide");
     plane.SetSizeZS(1024,512,0);
+
+    // block is uint8_t
     auto block =  ev->GetBlock(plane_id);
 
     //Retrieve event timestamp only from the first plane (7 bytes: 1000 0 <reserved[2:0]> <timestamp[47:0]>)
     if(plane_id==0){
         uint64_t ts = 0;
-        for(int byte_cnt=1;byte_cnt<8;byte_cnt++){
-            ts += block[byte_cnt] << (6-byte_cnt)*8;
+        for (int byte_cnt = 1; byte_cnt < 8; byte_cnt++) {
+          ts += block[byte_cnt] << (6 - byte_cnt) * 8; // 40 MHz
         }
-        d2->SetTimestamp(ts,ts,true);
+        ts *= 25000; // to ps
+        d2->SetTimestamp(ts, ts, true);
     }
 
+    auto dataword = block.begin();
+    dataword += 8;
+
+    uint8_t region_header = 0xFF;
+
+    while (dataword != block.end()) {
+        // idle/busy word
+        if ((*dataword >> 4) == 0xF) {
+          dataword++;
+          continue;
+        }
+        // empty data block
+        if ((*dataword >> 4) == 0xE) {
+          d2->AddPlane(plane);
+          break;
+        }
+        if ((*dataword >> 4) == 0xA) {
+          dataword += 2;
+        }
+        if ((*dataword >> 5) == 0x6) {
+          region_header = *dataword & 0x1F;
+        }
+        if ((*dataword >> 6) == 0x1) {
+          auto val = *dataword;
+          dataword++;
+          auto val2 = *dataword;
+         // plane.SetPixel(val, val2, ...);
+        }
+
+        // hit data identifier
+
+
+
+    }
     //Skip over idle or busy words
-    int byte_cnt = 8;
-    uint8_t identifier = block[byte_cnt]>>4;
-    while(identifier==0xf){
-        byte_cnt++;
-        identifier = block[byte_cnt]>>4;
-    }
+//    int byte_cnt = 8;
+//    uint8_t identifier = block[byte_cnt]>>4;
+//    while(identifier==0xf){
+//        byte_cnt++;
+//        identifier = block[byte_cnt]>>4;
+//    }
     //Next relevant word should be chip header (or empty frame header)
-    if(identifier==0xe){
-        d2->AddPlane(plane);
-        continue;
-    }
-    else byte_cnt=byte_cnt+2;
+    //    if(identifier==0xe){
+    //        d2->AddPlane(plane);
+    //        continue;
+    //    }
+    //    else byte_cnt=byte_cnt+2;
 
-    //Hit data
-    uint8_t word = 0;
-    uint8_t region_id = 0;
-    while(byte_cnt<=block.size()){
-        word = block[byte_cnt];
-        if(word>>0xF){
-            byte_cnt++;
-            continue;
-        }
-        if(word>>5==0x6){
-            region_id
-        }
+    //    //Hit data
+    //    uint8_t word = 0;
+    //    uint8_t region_id = 0;
+    //    while(byte_cnt<=block.size()){
+    //        word = block[byte_cnt];
+    //        if(word>>0xF){
+    //            byte_cnt++;
+    //            continue;
+    //        }
+    //        if(word>>5==0x6){
+    //            region_id
+    //        }
 
     }
 

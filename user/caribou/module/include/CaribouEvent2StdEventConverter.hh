@@ -49,6 +49,18 @@ namespace eudaq {
     double  y0;
 
   };
+
+
+
+  class CaribouTeleEventConverter: public eudaq::StdEventConverter{
+  public:
+    bool Converting(eudaq::EventSPC d1, eudaq::StdEventSP d2, eudaq::ConfigSPC conf) const override;
+    static const uint32_t m_id_factory = eudaq::cstr2hash("CaribouTeleEvent");
+  };
+
+
+
+
   class AD9249Event2StdEventConverter: public eudaq::StdEventConverter{
   public:
     bool Converting(eudaq::EventSPC d1, eudaq::StandardEventSP d2, eudaq::ConfigurationSPC conf) const override;
@@ -179,4 +191,7 @@ private:
     static bool frame_id_jumped_;
     void loadCalibration(std::string path, char delim, std::vector<std::vector<float>>& dat) const;
   };
+
+
+
 } // namespace eudaq
