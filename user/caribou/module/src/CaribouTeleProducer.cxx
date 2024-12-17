@@ -25,7 +25,7 @@ public:
   static const uint32_t m_id_factory = eudaq::cstr2hash("CaribouTeleProducer");
 private:
   unsigned m_ev;
-
+  unsigned m_planes;
   DeviceManager* manager_;
   std::string name_;
 
@@ -42,7 +42,7 @@ namespace{
 }
 
 CaribouTeleProducer::CaribouTeleProducer(const std::string name, const std::string &runcontrol)
-: eudaq::Producer(name, runcontrol), m_ev(0), m_exit_of_run(false) {
+    : eudaq::Producer(name, runcontrol), m_ev(0), m_exit_of_run(false), m_planes(3) {
   // Add cout as the default logging stream
   Log::addStream(std::cout);
 
@@ -68,7 +68,7 @@ void CaribouTeleProducer::DoReset() {
 void CaribouTeleProducer::DoInitialise() {
   LOG(INFO) << "Initialising CaribouProducer";
   auto ini = GetInitConfiguration();
-
+  m_planes = ini->Get("n_planes",3);
   auto level = ini->Get("log_level", "INFO");
   try {
     LogLevel log_level = Log::getLevelFromString(level);
@@ -146,10 +146,12 @@ void CaribouTeleProducer::DoStartRun() {
 
   // Sending initial Begin-of-run event, just containing tags with detector information:
   // Create new event
+  LOG(DEBUG) << "Creating BORE";
   auto event = eudaq::Event::MakeUnique("CaribouTeleEvent");
   event->SetBORE();
 
   // Use software and firmware version from first device:
+  LOG(DEBUG) << "Adding BORE tags";
   for(auto device : manager_->getDevices()) {
     event->SetTag("software",  device->getVersion());
     event->SetTag("firmware",  device->getFirmwareVersion());
@@ -165,9 +167,11 @@ void CaribouTeleProducer::DoStartRun() {
   //  }
 
   // Send the event to the Data Collector
+  LOG(DEBUG) << "Sending BORE";
   SendEvent(std::move(event));
 
   // Start DAQ:
+  LOG(DEBUG) << "Starting DAQ";
   for(auto device : manager_->getDevices()) {
     device->daqStart();
   }
@@ -204,7 +208,7 @@ void CaribouTeleProducer::RunLoop() {
   event->SetEventN(m_ev);
 
   while(!m_exit_of_run) {
-    for(int plane_id=0; plane_id<6; plane_id++){
+    for(int plane_id=0; plane_id<m_planes; plane_id++){
       auto device = manager_->getDevice(plane_id);
       try {
           auto data = device->getRawData();
@@ -218,7 +222,7 @@ void CaribouTeleProducer::RunLoop() {
                   EUDAQ_ERROR("CaribouTeleProducer tried to add data block with plane id that already existed in the event");
                   //break;//?
               }
-              if(event->NumBlocks() == 6) {
+              if(event->NumBlocks() == m_planes) {
                   SendEvent(std::move(event));
                   auto event = eudaq::Event::MakeUnique("CaribouTeleEvent");
                   m_ev++;
