@@ -153,9 +153,12 @@ void CaribouTeleProducer::DoStartRun() {
   // Use software and firmware version from first device:
   LOG(DEBUG) << "Adding BORE tags";
   for(auto device : manager_->getDevices()) {
+    LOG(DEBUG) << device->getVersion();
+    //LOG(DEBUG) << device->getFirmwareVersion();
+    //LOG(DEBUG) << LOGTIME;
     event->SetTag("software",  device->getVersion());
-    event->SetTag("firmware",  device->getFirmwareVersion());
-    event->SetTag("timestamp", LOGTIME);
+    //event->SetTag("firmware",  device->getFirmwareVersion());
+    //event->SetTag("timestamp", LOGTIME);
 
     break;
   }
@@ -214,17 +217,17 @@ void CaribouTeleProducer::RunLoop() {
           auto data = device->getRawData();
 
           if(!data.empty()) {
-              auto plane_id_list = event->GetBlockNumList();
+               auto plane_id_list = event->GetBlockNumList();
               if(std::find(plane_id_list.begin(), plane_id_list.end(), plane_id) == plane_id_list.end()){
                   event->AddBlock(plane_id, data);
-              }
-              else{
+               }
+               else{
                   EUDAQ_ERROR("CaribouTeleProducer tried to add data block with plane id that already existed in the event");
                   //break;//?
-              }
+               }
               if(event->NumBlocks() == m_planes) {
                   SendEvent(std::move(event));
-                  auto event = eudaq::Event::MakeUnique("CaribouTeleEvent");
+                  event = eudaq::Event::MakeUnique("CaribouTeleEvent");
                   m_ev++;
                   event->SetEventN(m_ev);
               }
