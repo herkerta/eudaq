@@ -42,7 +42,7 @@ namespace{
 }
 
 CaribouTeleProducer::CaribouTeleProducer(const std::string name, const std::string &runcontrol)
-    : eudaq::Producer(name, runcontrol), m_ev(0), m_exit_of_run(false), m_planes(3) {
+    : eudaq::Producer(name, runcontrol), m_ev(0), m_exit_of_run(false), m_planes(6) {
   // Add cout as the default logging stream
   Log::addStream(std::cout);
 
@@ -68,7 +68,7 @@ void CaribouTeleProducer::DoReset() {
 void CaribouTeleProducer::DoInitialise() {
   LOG(INFO) << "Initialising CaribouProducer";
   auto ini = GetInitConfiguration();
-  m_planes = ini->Get("n_planes",3);
+  m_planes = ini->Get("n_planes",6);
   auto level = ini->Get("log_level", "INFO");
   try {
     LogLevel log_level = Log::getLevelFromString(level);

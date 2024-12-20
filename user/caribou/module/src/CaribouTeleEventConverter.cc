@@ -17,7 +17,7 @@ bool CaribouTeleEventConverter::Converting(eudaq::EventSPC d1, eudaq::StdEventSP
 
 
   size_t nblocks= ev->NumBlocks();
-  if(nblocks != 3) {
+  if(nblocks != 6) {
     if(!ev->IsBORE() && !ev->IsEORE()) {
       EUDAQ_ERROR("Wrong number of blocks, expecting 1, received " + std::to_string(nblocks));
     }
@@ -25,7 +25,7 @@ bool CaribouTeleEventConverter::Converting(eudaq::EventSPC d1, eudaq::StdEventSP
     return false;
   }
   //Go through planes
-  for(int plane_id=0;plane_id<3;plane_id++){
+  for(int plane_id=0;plane_id<6;plane_id++){
     eudaq::StandardPlane plane(plane_id, "CaribouTele", "Alpide");
     plane.SetSizeZS(1024,512,0);
 
@@ -51,10 +51,12 @@ bool CaribouTeleEventConverter::Converting(eudaq::EventSPC d1, eudaq::StdEventSP
         data++;
       }
       // catch t_0 event with max time stamp
-      if(time ==0xFFFFFFFFFFFF){
-        if(trigID==0){
+      if(time>0xFFFFFFFFF){
+        //if(trigID>5){
         time=0;
-        } else EUDAQ_THROW("Maximal timestamp at trigger ID " + std::to_string(trigID));
+        //} else {
+        //  EUDAQ_THROW("Maximal timestamp at trigger ID " + std::to_string(trigID));
+       // }
       }
       time *=25000;      // to ps
       d2->SetTimeBegin(time);
@@ -64,6 +66,7 @@ bool CaribouTeleEventConverter::Converting(eudaq::EventSPC d1, eudaq::StdEventSP
     if(data == block.begin()){
       EUDAQ_ERROR("No timestamp or trigger ID at begin of data block");
     }
+    uint8_t region_header = 0xFF;
     // reading hit data block
     while(data!=block.end()){
 
