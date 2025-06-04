@@ -60,6 +60,10 @@ void CaribouTeleProducer::DoReset() {
   LOG(WARNING) << "Resetting CaribouProducer";
   m_exit_of_run = true;
 
+  // Power all layers off:
+  for(auto device : manager_->getDevices()) {
+  device->powerOff();
+  }
   // Delete all devices:
   std::lock_guard<std::mutex> lock{device_mutex_};
   manager_->clearDevices();
@@ -114,7 +118,7 @@ void CaribouTeleProducer::DoConfigure() {
       device->powerOn();
 
       // Wait for power to stabilize and for the TLU clock to be present
-      eudaq::mSleep(1000);
+      eudaq::mSleep(1500);
 
       // Configure the device
       device->configure();
@@ -195,7 +199,7 @@ void CaribouTeleProducer::DoStopRun() {
   // Stop the DAQ
   std::lock_guard<std::mutex> lock{device_mutex_};
   for(auto device : manager_->getDevices()) {
-    device->daqStop();
+     device->daqStop();
   }
   LOG(INFO) << "Stopped run.";
 }
