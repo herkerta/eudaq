@@ -8,26 +8,54 @@ endif()
 message(STATUS "monitor/StdEventMonitor is to be built (EUDAQ_BUILD_STDEVENT_MONITOR=ON)")
 
 find_package(ROOT REQUIRED COMPONENTS Core Gui Hist)
+include("${ROOT_DIR}/RootMacros.cmake")
 
-set(THISMON StdEventMonitor)
-set(THISMON_DICT_CXX ${CMAKE_CURRENT_BINARY_DIR}/${THISMON}_ROOT.cxx)
-root_generate_dictionary(${THISMON}_ROOT include/OnlineMonWindow.hh)
+add_executable(StdEventMonitor
+    src/BaseCollection.cc
+    src/CorrelationCollection.cc
+    src/CorrelationHistos.cc
+    src/EUDAQMonitorCollection.cc
+    src/EUDAQMonitorHistos.cc
+    src/HitmapCollection.cc
+    src/HitmapHistos.cc
+    src/MonitorPerformanceCollection.cc
+    src/MonitorPerformanceHistos.cc
+    src/OnlineMon.cxx
+    src/OnlineMonConfiguration.cc
+    src/OnlineMonWindow.cc
+    src/ParaMonitorCollection.cc
+    src/SimpleStandardEvent.cc
+    src/SimpleStandardPlane.cc
+)
 
-aux_source_directory(src THISMON_SRC)
-add_executable(${THISMON} ${THISMON_SRC} ${THISMON_DICT_CXX})
+target_compile_definitions(StdEventMonitor PRIVATE
+  $<$<PLATFORM_ID:Windows>:NOMINMAX;WIN32_LEAN_AND_MEAN>
+)
 
-target_link_libraries(${THISMON} ${EUDAQ_CORE_LIBRARY} ROOT::Core ROOT::Gui ROOT::Hist)
-target_include_directories(${THISMON} PRIVATE . include)
+target_link_libraries(StdEventMonitor
+  PRIVATE
+    ${EUDAQ_CORE_LIBRARY}
+    ROOT::Core
+    ROOT::Gui
+    ROOT::Hist
+)
 
-install(TARGETS ${THISMON}
+set_target_properties(StdEventMonitor PROPERTIES ENABLE_EXPORTS true)
+target_include_directories(StdEventMonitor PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}
+  ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+root_generate_dictionary(
+  G__StdEventMonitor
+  include/OnlineMonWindow.hh
+  MODULE StdEventMonitor
+  LINKDEF include/StdEventMonitorLinkDef.h
+)
+
+install(TARGETS StdEventMonitor
   RUNTIME DESTINATION bin
   LIBRARY DESTINATION lib
-  ARCHIVE DESTINATION lib)
+  ARCHIVE DESTINATION lib
+)
   
-set(StdEvtMonitor_PCM ${CMAKE_CURRENT_BINARY_DIR}/libStdEventMonitor_ROOT_rdict.pcm)
-set(StdEvtMonitor_MAP ${CMAKE_CURRENT_BINARY_DIR}/libStdEventMonitor_ROOT.rootmap)
-install(FILES
- ${StdEvtMonitor_PCM}
- ${StdEvtMonitor_MAP}
-DESTINATION lib)
-

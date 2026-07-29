@@ -2,7 +2,6 @@ CMAKE_MINIMUM_REQUIRED(VERSION 3.6.3 FATAL_ERROR)
 IF(COMMAND CMAKE_POLICY)
     CMAKE_POLICY(SET CMP0003 NEW) # change linker path search behaviour
     CMAKE_POLICY(SET CMP0048 NEW) # set project version
-    CMAKE_POLICY(SET CMP0065 OLD) # Use old linking behavior
     CMAKE_POLICY(SET CMP0057 NEW) # enable IN_LIST
     IF(${CMAKE_VERSION} VERSION_GREATER "3.13")
         CMAKE_POLICY(SET CMP0077 NEW) # allow overwriting options with normal variables
@@ -10,7 +9,7 @@ IF(COMMAND CMAKE_POLICY)
     ENDIF()
 ENDIF(COMMAND CMAKE_POLICY)
 
-project(EUDAQ VERSION 2.6.1)
+project(EUDAQ VERSION 2.8.1)
 
 include(CMakeDependentOption)
 if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
