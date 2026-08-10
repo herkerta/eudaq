@@ -33,6 +33,7 @@ private:
   Device* device_{nullptr};
   Device* secondary_device_{nullptr};
   std::string name_;
+  std::string type_;
 
   std::mutex device_mutex_;
   LogLevel level_;
@@ -115,18 +116,18 @@ void CaribouProducer::DoInitialise() {
   auto config = cfg.GetConfig(name_);
 
   std::lock_guard<std::mutex> lock{device_mutex_};
-  size_t device_id = manager_->addDevice(name_, config);
+  size_t device_id = manager_->addDevice(name_, type_, config);
   EUDAQ_INFO("Manager returned device ID " + std::to_string(device_id) + ", fetching device...");
   device_ = manager_->getDevice(device_id);
 
-  // Add secondary device if it is configured:
-  if(ini->Has("secondary_device")) {
-    std::string secondary = ini->Get("secondary_device", std::string());
-    auto sec_config = cfg.GetConfig(secondary);
-    size_t device_id2 = manager_->addDevice(secondary, sec_config);
-    EUDAQ_INFO("Manager returned device ID " + std::to_string(device_id2) + ", fetching secondary device...");
-    secondary_device_ = manager_->getDevice(device_id2);
-  }
+  // // Add secondary device if it is configured:
+  // if(ini->Has("secondary_device")) {
+  //   std::string secondary = ini->Get("secondary_device", std::string());
+  //   auto sec_config = cfg.GetConfig(secondary);
+  //   size_t device_id2 = manager_->addDevice(secondary, sec_config);
+  //   EUDAQ_INFO("Manager returned device ID " + std::to_string(device_id2) + ", fetching secondary device...");
+  //   secondary_device_ = manager_->getDevice(device_id2);
+  // }
 }
 
 // This gets called whenever the DAQ is configured
@@ -248,13 +249,15 @@ void CaribouProducer::RunLoop() {
       // Retrieve data from the device:
       auto data = device_->getRawData();
 
-      if(!data.empty()) {
+      if(!data.has_value()) continue;
+
+      if(!data->empty()) {   //TODO: Is this condition redundant now with the line above?
         // Create new event
         auto event = eudaq::Event::MakeUnique("Caribou" + name_ + "Event");
         // Set event ID
         event->SetEventN(m_ev);
         // Add data to the event
-        event->AddBlock(0, data);
+        event->AddBlock(0, data.value());
 
         // Query ADC if wanted:
         if(m_ev%adc_freq_ == 0) {
